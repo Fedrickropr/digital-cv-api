@@ -58,6 +58,24 @@ func GenerateJwt(c *gin.Context) {
 	c.Status(200)
 }
 
+func GetJwts(c *gin.Context) {
+	cookie, err := c.Cookie("jwt")
+
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Create a session first"})
+		return
+	}
+
+	sessionUuid, err := extractUuidFromToken(cookie, uuid.Nil, c)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Create a session first"})
+		return
+	}
+
+	jwtList := initializers.DB.Where("id = ?", sessionUuid).First(&models.Session{})
+	c.JSON(200, jwtList)
+}
+
 func extractUuidFromToken(cookie string, sessionUuid uuid.UUID, c *gin.Context) (uuid.UUID, error) {
 	token, err := jwt.Parse(cookie, func(token *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("JWT_SECRET")), nil
@@ -65,21 +83,35 @@ func extractUuidFromToken(cookie string, sessionUuid uuid.UUID, c *gin.Context) 
 
 	if err != nil {
 		log.Println(err)
-		return uuid.Nil, errors.New("could not extract UUID from token")
+		return handleUuidError(err, "could not parse token")
 	}
 
-	if err == nil && token.Valid {
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			if sid, ok := claims["session_uuid"].(string); ok {
-				sessionUuid, err = uuid.Parse(sid)
-				if err != nil {
-					// invalid UUID string in claim, fallback to new UUID
-					sessionUuid = uuid.New()
-					initializers.DB.Create(&models.Session{ID: sessionUuid})
-					c.Header("x-new-session", "true")
-				}
-			}
-		}
+	if token.Valid {
+		log.Println(err)
+		return handleUuidError(err, "token was not valid")
 	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return handleUuidError(err, "invalid token claims")
+	}
+
+	sessionId, ok := claims["session_uuid"].(string)
+	if !ok {
+		log.Println(err)
+		return handleUuidError(err, "no session uuid found")
+	}
+
+	sessionUuid, err = uuid.Parse(sessionId)
+	if err != nil {
+		log.Println(err)
+		return uuid.Nil, errors.New("could not parse UUID from token")
+	}
+
 	return sessionUuid, nil
+}
+
+func handleUuidError(err error, msg string) (uuid.UUID, error) {
+	log.Println(err)
+	return uuid.Nil, errors.New(msg)
 }
