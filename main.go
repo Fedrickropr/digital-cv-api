@@ -16,6 +16,7 @@ func init() {
 func main() {
 	router := gin.Default()
 	api := router.Group("api")
+	api.GET("/jwt", controllers.GetJwts)
 	api.POST("/jwt", controllers.GenerateJwt)
 
 	router.Run("localhost:3000")
