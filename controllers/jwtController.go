@@ -3,17 +3,17 @@ package controllers
 import (
 	"digital-cv-api/initializers"
 	"digital-cv-api/models"
+	"digital-cv-api/services"
 	"errors"
 	"log"
 	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
 
-func GenerateJwt(c *gin.Context) {
+func CreateJwt(c *gin.Context) {
 	cookie, err := c.Cookie("jwt")
 
 	// TODO generic session middleware?
@@ -39,17 +39,9 @@ func GenerateJwt(c *gin.Context) {
 		}
 	}
 
-	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"session_uuid": sessionUuid,
-		"iat":          jwt.NewNumericDate(time.Now()),
-		"exp":          jwt.NewNumericDate(time.Now().Add(60 * 24 * time.Hour)),
-	})
-
-	tokenString, err := jwtToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
-
-	if err != nil {
-		log.Println(err)
-		c.JSON(500, gin.H{"error": "Could not generate token"})
+	tokenString, shouldReturn := services.GenerateJWT(sessionUuid, false, c)
+	initializers.SyncDatabase()
+	if shouldReturn {
 		return
 	}
 
@@ -96,6 +88,45 @@ func GetJwts(c *gin.Context) {
 	}
 
 	c.JSON(200, jwtList)
+}
+
+func UpdateJwt(c *gin.Context) {
+	cookie, err := c.Cookie("jwt")
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Create a session first"})
+		return
+	}
+
+	sessionUuid, err := extractUuidFromToken(cookie, c)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Create a session first"})
+		return
+	}
+
+	var jwtToken models.JwtToken
+	if err := initializers.DB.Where("id = ? AND session_uuid = ?", c.Param("id"), sessionUuid).First(&jwtToken).Error; err != nil {
+		c.JSON(404, gin.H{"error": "JWT not found"})
+		return
+	}
+
+	// create new jwt token
+
+	db := initializers.DB
+	db.Model(&models.JwtToken{}).Where("session_uuid = ?", sessionUuid).Update("active", false)
+
+	newJwtTokenString, shouldReturn := services.GenerateJWT(sessionUuid, true, c)
+	if shouldReturn {
+		c.JSON(500, gin.H{"error": "Could not generate new JWT"})
+		return
+	}
+
+	if err := initializers.DB.Save(&jwtToken).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Could not update JWT"})
+		return
+	}
+
+	c.JSON(200, gin.H{"token": newJwtTokenString, "active": jwtToken.Active})
+
 }
 
 func extractUuidFromToken(cookie string, c *gin.Context) (uuid.UUID, error) {

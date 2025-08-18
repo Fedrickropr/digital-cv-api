@@ -9,4 +9,5 @@ type JwtToken struct {
 	Name        string
 	SessionUuid uuid.UUID `gorm:"type:uuid;foreignKey:SessionModel"`
 	Token       string
+	Active      bool `gorm:"type:boolean"`
 }

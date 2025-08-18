@@ -16,8 +16,13 @@ func init() {
 func main() {
 	router := gin.Default()
 	api := router.Group("api")
-	api.GET("/jwt", controllers.GetJwts)
-	api.POST("/jwt", controllers.GenerateJwt)
+	jwt := api.Group("jwt")
+	claim := jwt.Group("claim")
+
+	jwt.GET("", controllers.GetJwts)
+	jwt.POST("", controllers.CreateJwt)
+	jwt.PUT("/:id", controllers.UpdateJwt)
+	claim.POST("", controllers.AddJwtClaim)
 
 	router.Run("localhost:3000")
 }
