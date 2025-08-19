@@ -63,3 +63,24 @@ func DeleteJwtClaim(c *gin.Context) {
 
 	c.JSON(200, gin.H{"message": "JWT claim deleted successfully"})
 }
+
+func GetJwtClaimsById(c *gin.Context) {
+	_, err := getSessionUuid(c)
+
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	var jwtClaims []models.JwtClaim
+	if err := initializers.DB.Where("token_id = ?", c.Param("id")).Find(&jwtClaims).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Could not retrieve JWT claims"})
+		return
+	}
+	if len(jwtClaims) == 0 {
+		c.JSON(404, gin.H{"error": "No JWT claims found for this token"})
+		return
+	}
+	c.JSON(200, jwtClaims)
+
+}
