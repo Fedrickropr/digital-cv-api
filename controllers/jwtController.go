@@ -37,7 +37,7 @@ func CreateJwt(c *gin.Context) {
 		}
 	}
 
-	// First insert token description to DB
+	// Insert token description to DB
 	name := c.Query("name")
 	jwtTokenObj := models.JwtToken{
 		ID:          uuid.New(),
