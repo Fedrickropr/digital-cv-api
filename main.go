@@ -21,6 +21,7 @@ func main() {
 	jwt.GET("", controllers.GetJwts)
 	jwt.POST("", controllers.CreateJwt)
 	jwt.PUT("/:id", controllers.UpdateJwt)
+	jwt.GET("/:id", controllers.GetJwtContents)
 
 	claim := jwt.Group("claim")
 	claim.POST("", controllers.AddJwtClaim)

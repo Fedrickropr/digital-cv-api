@@ -113,21 +113,25 @@ func UpdateJwt(c *gin.Context) {
 	c.JSON(200, gin.H{"token": newJwtTokenString, "active": jwtToken.Active})
 }
 
-func GetJwtContents(c *gin.Context) (uuid.UUID, error) {
+func GetJwtContents(c *gin.Context) {
 	sessionUuid, err := getSessionUuid(c)
 	if err != nil {
-		return uuid.Nil, err
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
 	}
 
-	jwtUuid, err := uuid.Parse(c.Param("uuid"))
+	jwtUuid, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(400, gin.H{"error": "invalid UUID format " + err.Error()})
-		return uuid.Nil, err
+		return
 	}
 
-	// TODO get the active UUID
-	services.GenerateJWT(sessionUuid, jwtUuid)
-	return sessionUuid, nil
+	tokenString, err := services.GenerateJWT(sessionUuid, jwtUuid)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+	}
+
+	c.JSON(200, gin.H{"token": tokenString})
 }
 
 func getSessionUuid(c *gin.Context) (uuid.UUID, error) {
