@@ -7,4 +7,5 @@ import (
 func SyncDatabase() {
 	DB.AutoMigrate(&models.Session{})
 	DB.AutoMigrate(&models.JwtToken{})
+	DB.AutoMigrate(&models.JwtClaim{})
 }
