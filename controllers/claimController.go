@@ -65,7 +65,7 @@ func DeleteJwtClaim(c *gin.Context) {
 }
 
 func GetJwtClaimsById(c *gin.Context) {
-	_, err := getSessionUuid(c)
+	_, err := getOrCreateSessionUuid(c)
 
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})

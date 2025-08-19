@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -31,19 +32,6 @@ func CreateJwt(c *gin.Context) {
 		Active:      true,
 	}
 	initializers.DB.Create(&jwtTokenObj)
-
-	// Generate the token
-	tokenString, err := services.GenerateJWT(sessionUuid, jwtTokenObj.ID)
-	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Set the session UUID cookie
-	c.SetCookie("jwt", tokenString, 60*60*24*60, "/", "", false, true)
-
-	// Allows frontend to always access active token
-	c.Header("Authorization", "Bearer "+tokenString)
 
 	c.Status(200)
 }
@@ -140,7 +128,6 @@ func DeleteJwt(c *gin.Context) {
 }
 
 func getOrCreateSessionUuid(c *gin.Context) (uuid.UUID, error) {
-
 	cookie, err := c.Cookie("jwt")
 	var sessionUuid uuid.UUID = uuid.Nil
 
@@ -150,6 +137,21 @@ func getOrCreateSessionUuid(c *gin.Context) (uuid.UUID, error) {
 		initializers.DB.Create(&models.Session{ID: sessionUuid})
 
 		c.Header("x-new-session", "true")
+
+		jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"session_uuid": sessionUuid,
+			"iat":          jwt.NewNumericDate(time.Now()),
+			"exp":          jwt.NewNumericDate(time.Now().Add(60 * 24 * time.Hour)),
+		})
+
+		tokenString, err := jwtToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
+		if err != nil {
+			log.Println(err)
+			c.JSON(500, gin.H{"error": "could not generate token"})
+			return uuid.Nil, errors.New("could not generate token")
+		}
+
+		c.SetCookie("jwt", tokenString, 60*60*24*60, "/", "", false, true)
 	}
 
 	// If token was not created, parse cookie

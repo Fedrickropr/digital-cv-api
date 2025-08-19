@@ -24,13 +24,18 @@ func main() {
 	jwt.GET("/:id", controllers.GetJwtContents)
 	jwt.GET("/:id/claims", controllers.GetJwtClaimsById)
 	jwt.POST("", controllers.CreateJwt)
+	jwt.OPTIONS("")
+
 	jwt.PUT("/:id", controllers.UpdateJwt)
+	jwt.OPTIONS("/:id")
 	jwt.DELETE("/:id", controllers.DeleteJwt)
 
 	claim := jwt.Group("claim")
 	claim.GET("", controllers.GetJwtClaims)
 	claim.POST("", controllers.AddJwtClaim)
+	claim.OPTIONS("")
 	claim.PUT("/:id", controllers.EditJwtClaim)
+	claim.OPTIONS("/:id")
 	claim.DELETE("/:id", controllers.DeleteJwtClaim)
 
 	router.Run("localhost:3000")
