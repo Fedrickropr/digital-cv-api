@@ -14,7 +14,7 @@ import (
 )
 
 func CreateJwt(c *gin.Context) {
-	sessionUuid, err := getSessionUuid(c)
+	sessionUuid, err := getOrCreateSessionUuid(c)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -47,7 +47,7 @@ func CreateJwt(c *gin.Context) {
 }
 
 func GetJwts(c *gin.Context) {
-	sessionUuid, err := getSessionUuid(c)
+	sessionUuid, err := getOrCreateSessionUuid(c)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -65,7 +65,7 @@ func GetJwts(c *gin.Context) {
 }
 
 func UpdateJwt(c *gin.Context) {
-	sessionUuid, err := getSessionUuid(c)
+	sessionUuid, err := getOrCreateSessionUuid(c)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -97,7 +97,7 @@ func UpdateJwt(c *gin.Context) {
 }
 
 func GetJwtContents(c *gin.Context) {
-	sessionUuid, err := getSessionUuid(c)
+	sessionUuid, err := getOrCreateSessionUuid(c)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
@@ -117,12 +117,13 @@ func GetJwtContents(c *gin.Context) {
 
 	c.JSON(200, gin.H{"token": tokenString})
 }
-func getSessionUuid(c *gin.Context) (uuid.UUID, error) {
+
+func getOrCreateSessionUuid(c *gin.Context) (uuid.UUID, error) {
 
 	cookie, err := c.Cookie("jwt")
 	var sessionUuid uuid.UUID = uuid.Nil
 
-	// Create a UUID for this user's session in a cookie if they did not have one already
+	// Create UUID if not present yet
 	if err != nil || len(cookie) < 1 {
 		sessionUuid = uuid.New()
 		initializers.DB.Create(&models.Session{ID: sessionUuid})
@@ -130,12 +131,11 @@ func getSessionUuid(c *gin.Context) (uuid.UUID, error) {
 		c.Header("x-new-session", "true")
 	}
 
+	// If token was not created, parse cookie
 	if sessionUuid == uuid.Nil {
-		// If we didnt create one, i.e. cookie existed, parse the cookie for it
-		log.Printf("test: %v", cookie)
 		sessionUuid, err = extractUuidFromToken(cookie)
 
-		// Insert it if we didnt have it stored
+		// Tough luck, you get a new session
 		if err != nil {
 			sessionUuid = uuid.New()
 			initializers.DB.Create(&models.Session{ID: sessionUuid})
