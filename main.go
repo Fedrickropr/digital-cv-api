@@ -21,12 +21,17 @@ func main() {
 
 	jwt := api.Group("jwt")
 	jwt.GET("", controllers.GetJwts)
+	jwt.GET("/:id", controllers.GetJwtContents)
+	jwt.GET("/:id/claims", controllers.GetJwtClaimsById)
 	jwt.POST("", controllers.CreateJwt)
 	jwt.PUT("/:id", controllers.UpdateJwt)
-	jwt.GET("/:id", controllers.GetJwtContents)
+	jwt.DELETE("/:id", controllers.DeleteJwt)
 
 	claim := jwt.Group("claim")
+	claim.GET("", controllers.GetJwtClaims)
 	claim.POST("", controllers.AddJwtClaim)
+	claim.PUT("/:id", controllers.EditJwtClaim)
+	claim.DELETE("/:id", controllers.DeleteJwtClaim)
 
 	router.Run("localhost:3000")
 }

@@ -20,6 +20,8 @@ func CreateJwt(c *gin.Context) {
 		return
 	}
 
+	initializers.DB.Model(&models.JwtToken{}).Where("session_uuid = ?", sessionUuid).Update("active", false)
+
 	// Insert token description to DB
 	name := c.Query("name")
 	jwtTokenObj := models.JwtToken{
@@ -116,6 +118,25 @@ func GetJwtContents(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"token": tokenString})
+}
+
+func DeleteJwt(c *gin.Context) {
+	sessionUuid, err := getOrCreateSessionUuid(c)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	jwtId := c.Param("id")
+	var jwtToken models.JwtToken
+	if err := initializers.DB.Where("id = ? AND session_uuid = ?", jwtId, sessionUuid).First(&jwtToken).Error; err != nil {
+		c.JSON(404, gin.H{"error": "JWT not found"})
+		return
+	}
+	if err := initializers.DB.Delete(&jwtToken).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Could not delete JWT"})
+		return
+	}
+	c.JSON(204, gin.H{"message": "JWT deleted successfully"})
 }
 
 func getOrCreateSessionUuid(c *gin.Context) (uuid.UUID, error) {
