@@ -112,12 +112,13 @@ func GetJwtContents(c *gin.Context) {
 	tokenString, err := services.GenerateJWT(sessionUuid, jwtUuid)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(200, gin.H{"token": tokenString})
 }
-
 func getSessionUuid(c *gin.Context) (uuid.UUID, error) {
+
 	cookie, err := c.Cookie("jwt")
 	var sessionUuid uuid.UUID = uuid.Nil
 
@@ -133,7 +134,6 @@ func getSessionUuid(c *gin.Context) (uuid.UUID, error) {
 		// If we didnt create one, i.e. cookie existed, parse the cookie for it
 		log.Printf("test: %v", cookie)
 		sessionUuid, err = extractUuidFromToken(cookie)
-		c.SetCookie("jwt", "", 1, "/", "", false, true)
 
 		// Insert it if we didnt have it stored
 		if err != nil {
