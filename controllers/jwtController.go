@@ -15,10 +15,8 @@ import (
 
 func CreateJwt(c *gin.Context) {
 	cookie, err := c.Cookie("jwt")
-
-	// TODO generic session middleware?
-	// TODO kind of pointless, just a few calls and no need for security
 	var sessionUuid uuid.UUID
+
 	// Create a UUID for this user's session in a cookie if they did not have one already
 	if err != nil {
 		sessionUuid = uuid.New()
@@ -27,55 +25,48 @@ func CreateJwt(c *gin.Context) {
 		c.Header("x-new-session", "true")
 	}
 
+	// If we didnt create one, i.e. cookie existed, parse the cookie for it
 	if sessionUuid == uuid.Nil {
-		sessionUuid, err = extractUuidFromToken(cookie, c)
+		sessionUuid, err = extractUuidFromToken(cookie)
 		c.SetCookie("jwt", "", 1, "/", "", false, true)
 
-		// Also create a new session if theirs is not valid
+		// Insert it if we didnt have it stored
 		if err != nil {
-			log.Println(err)
 			sessionUuid = uuid.New()
 			initializers.DB.Create(&models.Session{ID: sessionUuid})
 		}
 	}
 
-	tokenString, shouldReturn := services.GenerateJWT(sessionUuid, false, c)
-	initializers.SyncDatabase()
-	if shouldReturn {
-		return
-	}
-
-	// Optional
+	// First insert token description to DB
 	name := c.Query("name")
-
-	// Store the token in the database
 	jwtTokenObj := models.JwtToken{
 		ID:          uuid.New(),
 		Name:        name,
 		SessionUuid: sessionUuid,
-		Token:       tokenString,
+		Active:      true,
 	}
 	initializers.DB.Create(&jwtTokenObj)
+
+	// Generate the token
+	tokenString, err := services.GenerateJWT(sessionUuid, jwtTokenObj.ID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 
 	// Set the session UUID cookie
 	c.SetCookie("jwt", tokenString, 60*60*24*60, "/", "", false, true)
 
-	// For easy updates
+	// Allows frontend to always access active token
 	c.Header("Authorization", "Bearer "+tokenString)
 
 	c.Status(200)
 }
 
 func GetJwts(c *gin.Context) {
-	cookie, err := c.Cookie("jwt")
+	sessionUuid, err := getSessionUuid(c)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "Create a session first"})
-		return
-	}
-
-	sessionUuid, err := extractUuidFromToken(cookie, c)
-	if err != nil {
-		c.JSON(400, gin.H{"error": "Create a session first"})
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -91,15 +82,9 @@ func GetJwts(c *gin.Context) {
 }
 
 func UpdateJwt(c *gin.Context) {
-	cookie, err := c.Cookie("jwt")
+	sessionUuid, err := getSessionUuid(c)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "Create a session first"})
-		return
-	}
-
-	sessionUuid, err := extractUuidFromToken(cookie, c)
-	if err != nil {
-		c.JSON(400, gin.H{"error": "Create a session first"})
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -109,27 +94,56 @@ func UpdateJwt(c *gin.Context) {
 		return
 	}
 
-	// create new jwt token
+	// Set all tokens inactive
+	initializers.DB.Model(&models.JwtToken{}).Where("session_uuid = ?", sessionUuid).Update("active", false)
 
-	db := initializers.DB
-	db.Model(&models.JwtToken{}).Where("session_uuid = ?", sessionUuid).Update("active", false)
-
-	newJwtTokenString, shouldReturn := services.GenerateJWT(sessionUuid, true, c)
-	if shouldReturn {
-		c.JSON(500, gin.H{"error": "Could not generate new JWT"})
-		return
-	}
-
-	if err := initializers.DB.Save(&jwtToken).Error; err != nil {
+	// Set the to update token to active
+	jwtToken.Active = true
+	if err = initializers.DB.Save(&jwtToken).Error; err != nil {
 		c.JSON(500, gin.H{"error": "Could not update JWT"})
 		return
 	}
 
-	c.JSON(200, gin.H{"token": newJwtTokenString, "active": jwtToken.Active})
+	newJwtTokenString, err := services.GenerateJWT(sessionUuid, jwtToken.ID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 
+	c.JSON(200, gin.H{"token": newJwtTokenString, "active": jwtToken.Active})
 }
 
-func extractUuidFromToken(cookie string, c *gin.Context) (uuid.UUID, error) {
+func GetJwtContents(c *gin.Context) (uuid.UUID, error) {
+	sessionUuid, err := getSessionUuid(c)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	jwtUuid, err := uuid.Parse(c.Param("uuid"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid UUID format " + err.Error()})
+		return uuid.Nil, err
+	}
+
+	// TODO get the active UUID
+	services.GenerateJWT(sessionUuid, jwtUuid)
+	return sessionUuid, nil
+}
+
+func getSessionUuid(c *gin.Context) (uuid.UUID, error) {
+	cookie, err := c.Cookie("jwt")
+	if err != nil {
+		return uuid.UUID{}, errors.New("no cookie found")
+	}
+
+	sessionUuid, err := extractUuidFromToken(cookie)
+	if err != nil {
+		return uuid.UUID{}, errors.New("create a session first")
+	}
+	return sessionUuid, nil
+}
+
+func extractUuidFromToken(cookie string) (uuid.UUID, error) {
 	token, err := jwt.Parse(cookie, func(token *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("JWT_SECRET")), nil
 	}, jwt.WithValidMethods([]string{"HS256"}))
