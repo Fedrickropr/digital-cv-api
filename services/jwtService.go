@@ -15,7 +15,7 @@ import (
 func GenerateJWT(sessionUuid uuid.UUID, tokenUuid uuid.UUID) (string, error) {
 	// Get the token
 	var tokenData models.JwtToken
-	res := initializers.DB.Where("session_uuid = ? AND id = ?", sessionUuid, tokenUuid).First(&tokenData)
+	res := initializers.DB.Where("session_uuid = ? AND ID = ?", sessionUuid, tokenUuid).First(&tokenData)
 	if res.Error != nil {
 		return "", errors.New("could not find JWT")
 	}

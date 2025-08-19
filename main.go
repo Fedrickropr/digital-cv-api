@@ -3,6 +3,7 @@ package main
 import (
 	"digital-cv-api/controllers"
 	"digital-cv-api/initializers"
+	"digital-cv-api/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,12 +17,14 @@ func init() {
 func main() {
 	router := gin.Default()
 	api := router.Group("api")
+	api.Handlers = append(api.Handlers, middleware.HandleCors())
 
 	jwt := api.Group("jwt")
 	jwt.GET("", controllers.GetJwts)
+	jwt.GET("/:id", controllers.GetJwtContents)
+	jwt.GET("/:id/claims", controllers.GetJwtClaimsById)
 	jwt.POST("", controllers.CreateJwt)
 	jwt.PUT("/:id", controllers.UpdateJwt)
-	jwt.GET("/:id/claims", controllers.GetJwtClaimsById)
 	jwt.DELETE("/:id", controllers.DeleteJwt)
 
 	claim := jwt.Group("claim")
