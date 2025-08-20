@@ -127,6 +127,21 @@ func DeleteJwt(c *gin.Context) {
 	c.JSON(204, gin.H{"message": "JWT deleted successfully"})
 }
 
+func DeleteAllJwts(c *gin.Context) {
+	sessionUuid, err := getOrCreateSessionUuid(c)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := initializers.DB.Where("session_uuid = ?", sessionUuid).Delete(&models.JwtToken{}).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Could not delete JWTs"})
+		return
+	}
+
+	c.JSON(204, gin.H{"message": "All JWTs deleted successfully"})
+}
+
 func getOrCreateSessionUuid(c *gin.Context) (uuid.UUID, error) {
 	cookie, err := c.Cookie("jwt")
 	var sessionUuid uuid.UUID = uuid.Nil
